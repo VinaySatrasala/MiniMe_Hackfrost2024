@@ -1,0 +1,24 @@
+{
+    "version": 2,
+    "builds": [
+      {
+        "src": "src/index.ts",
+        "use": "@vercel/node"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/(.*)",
+        "dest": "/src/index.ts"
+      }
+    ],
+    "build": {
+      "env": {
+        "PRISMA_GENERATE": "true"
+      },
+      "commands": [
+        "prisma generate"
+      ]
+    }
+  }
+  
