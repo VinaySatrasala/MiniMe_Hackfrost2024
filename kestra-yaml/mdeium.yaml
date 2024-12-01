@@ -1,0 +1,93 @@
+id: medium_publish_article
+namespace: company.team
+
+inputs:
+  - id: article_title
+    type: STRING
+  - id: article_content
+    type: STRING
+  - id: article_tags
+    type: STRING
+  - id: token
+    type: STRING
+  - id: slack
+    type: STRING
+
+tasks:
+  - id: publish_to_medium
+    type: io.kestra.core.tasks.scripts.Python
+    inputFiles:
+      main.py: |
+        import requests
+        from kestra import Kestra
+
+        def publish_to_medium(article_name, article_content, article_tags, token):
+            # Fetch user info from Medium using the provided token
+            user_info = requests.get(f"https://api.medium.com/v1/me?accessToken={token}")
+            user_json_info = user_info.json()
+
+            if user_info.status_code != 200:
+                Kestra.outputs({'status': f"Failed to get user info: {user_info.status_code}",'article_url': "Something went wrong"})
+                return
+
+            header = {
+                "Authorization": f"Bearer {token}"
+            }
+
+            article = {
+                "title": article_name,
+                "contentFormat": "html",
+                "content": article_content,
+                "canonicalUrl": "",
+                "tags": article_tags.split(", "),
+                "publishStatus": "public"  # Publish immediately
+            }
+
+            post_request = requests.post(f"https://api.medium.com/v1/users/{user_json_info['data']['id']}/posts", 
+                                         headers=header, 
+                                         json=article)
+
+            if post_request.status_code == 201:
+                Kestra.outputs({
+                    'status': 'Article published successfully!',
+                    'article_url': post_request.json()['data']['url']
+                })
+            else:
+                Kestra.outputs({
+                    'status': 'Error publishing article',
+                    'article_url': post_request.json()
+                })
+
+        if __name__ == "__main__":
+            # Directly using the inputs from Kestra
+            article_name = "{{ inputs.article_title }}"
+            article_content = """{{ inputs.article_content }}"""
+            article_tags = "{{ inputs.article_tags }}"
+            token = "{{ inputs.token }}"
+            
+            # Publish the article to Medium
+            publish_to_medium(article_name, article_content, article_tags, token)
+
+    requirements:
+      - requests
+      - markdown
+
+  - id: slack-incoming-webhook
+    type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
+    description: A notification
+    url: "{{inputs.slack}}"
+    payload : | 
+      {
+        "text" : "Article status: {{outputs.publish_to_medium.vars.article_url}}"
+      }
+
+errors:
+  - id: error
+    type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
+    description: error
+    logLevel: ERROR
+    url: "{{inputs.slack}}"
+    payload: | 
+      {
+        "text" : "Error: {{outputs.publish_to_medium.vars.article_url}}"
+      }

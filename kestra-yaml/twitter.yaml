@@ -1,0 +1,113 @@
+id: twitter_post
+namespace: company.team
+
+inputs:
+  - id: tweet_text
+    type: STRING  # Input for the tweet text you want to post
+  - id: consumer_key
+    type: STRING  # Input for the Twitter Consumer Key
+  - id: consumer_secret
+    type: STRING  # Input for the Twitter Consumer Secret
+  - id: oauth_token
+    type: STRING  # Input for the Twitter OAuth Token
+  - id: oauth_token_secret
+    type: STRING  # Input for the Twitter OAuth Token Secret
+  - id : slack
+    type : STRING
+
+tasks:
+  - id: python
+    type: io.kestra.core.tasks.scripts.Python
+    inputFiles:
+      # JSON file containing the tweet data (e.g., input JSON file for the tweet text)
+      tweet_data.json: |
+        {
+          "text": "{{ inputs.tweet_text }}"
+        }
+      main.py: |
+        from kestra import Kestra
+        import os
+        import sys
+        import json
+        import requests
+        from requests_oauthlib import OAuth1
+
+        # Function to post a tweet
+        def post_tweet(tweet_text, consumer_key, consumer_secret, oauth_token, oauth_token_secret):
+            # Twitter API endpoint for posting a tweet (v2 endpoint)
+            endpoint_url = 'https://api.twitter.com/2/tweets'
+
+            # Prepare OAuth1 authentication object
+            auth = OAuth1(consumer_key, consumer_secret, oauth_token, oauth_token_secret)
+
+            # Prepare tweet data
+            data = {
+                'text': tweet_text  # Send the tweet text
+            }
+
+            # Make the request to post the tweet
+            response = requests.post(endpoint_url, json=data, auth=auth)
+
+            if response.status_code == 201:  # Success
+                print("Tweet posted successfully!")
+                return response.json()  # Return the JSON response (tweet details)
+            else:
+                print(f"Error: {response.status_code}")
+                print(response.json())
+                return None
+
+        if __name__ == "__main__":
+            # Reading tweet data passed in JSON format
+            tweet_data_file = sys.argv[1]
+            tweet_data = json.loads(open(tweet_data_file).read())
+
+            # Reading credentials from inputs (directly passed as inputs)
+            tweet_text = tweet_data['text']
+            consumer_key = os.getenv('CONSUMER_KEY', '{{ inputs.consumer_key }}')
+            consumer_secret = os.getenv('CONSUMER_SECRET', '{{ inputs.consumer_secret }}')
+            oauth_token = os.getenv('OAUTH_TOKEN', '{{ inputs.oauth_token }}')
+            oauth_token_secret = os.getenv('OAUTH_TOKEN_SECRET', '{{ inputs.oauth_token_secret }}')
+
+            # Debugging output: check if credentials are being passed correctly
+            print(f"Debugging Credentials:")
+            print(f"CONSUMER_KEY: {consumer_key}")
+            print(f"CONSUMER_SECRET: {consumer_secret}")
+            print(f"OAUTH_TOKEN: {oauth_token}")
+            print(f"OAUTH_TOKEN_SECRET: {oauth_token_secret}")
+
+            # Post the tweet
+            result = post_tweet(tweet_text, consumer_key, consumer_secret, oauth_token, oauth_token_secret)
+            if result:
+                # Output the result to Kestra
+                Kestra.outputs({'status': 'Tweet posted successfully!', 'tweet_id': result['data']['id']})
+            else:
+                Kestra.outputs({'status': 'Failed to post tweet', 'tweet_id': 'Invalid credentials or API error'})
+    requirements:
+      - requests
+      - requests_oauthlib
+    args:
+      - tweet_data.json  # Path to the input JSON file with tweet data
+    env:
+      CONSUMER_KEY: "{{ inputs.consumer_key }}"
+      CONSUMER_SECRET: "{{ inputs.consumer_secret }}"
+      OAUTH_TOKEN: "{{ inputs.oauth_token }}"
+      OAUTH_TOKEN_SECRET: "{{ inputs.oauth_token_secret }}"
+  - id : slack-incoming-webhook
+    type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
+    description: A notification
+    url: "{{inputs.slack}}"
+    payload: |
+      {
+        "text": "{{outputs.python.vars.tweet_id}}"
+      }
+
+errors:
+  - id: error
+    type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
+    description: error
+    logLevel: ERROR
+    url: "slack"
+    payload: | 
+      {
+        "text" : "{{outputs.python.vars.tweet_id}}"
+      }

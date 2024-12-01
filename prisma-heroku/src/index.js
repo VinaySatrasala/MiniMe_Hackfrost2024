@@ -4,9 +4,7 @@ import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
 import axios from 'axios';
-import markdown from 'markdown-it';  // Use markdown-it to convert Markdown to HTML
 import cors from "cors"
-import { marked } from 'marked';
 
 
 dotenv.config();
@@ -14,27 +12,29 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 const port = process.env.PORT || 3002;
+let slack = "https://hooks.slack.com/services/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"; 
+
 
 app.use(express.json());
 app.use(cors());
-const trail: string | any[] = []
-const trailUsed: any = []
+const trail = []
+const trailUsed = []
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Helper function to generate JWT
-const generateToken = (userId: number) => {
+const generateToken = (userId) => {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '1h' });
 };
 
 // Middleware to authenticate and decode JWT
-const authenticateToken = (req: any, res: any, next: any) => {
+const authenticateToken = (req, res, next) => {
   const token = req.headers['authorization']?.split(' ')[1]; // Bearer <token>
 
   if (!token) {
     return res.status(401).json({ message: 'Access denied, no token provided.' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err: any, decoded: any) => {
+  jwt.verify(token, JWT_SECRET, (err , decoded ) => {
     if (err) {
       return res.status(403).json({ message: 'Invalid or expired token.' });
     }
@@ -42,7 +42,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
     next();
   });
 };
-async function getUserTokens(userId  : any) {
+async function getUserTokens(userId   ) {
   try {
     // Fetch user by ID and select the token fields
     const user = await prisma.user.findUnique({
@@ -69,7 +69,7 @@ const OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY || '';  // Ensure your A
 const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || '';  // Your OpenAI API endpoint
 
 // Helper function to get GPT response
-const getGptResponse = async (prompt: string): Promise<string> => {
+const getGptResponse = async (prompt) => {
   console.log(OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT)
   try {
     const response = await axios.post(AZURE_OPENAI_ENDPOINT, {
@@ -97,7 +97,7 @@ const getGptResponse = async (prompt: string): Promise<string> => {
 
 
 // Sign-up Endpoint
-app.post('/signup', async (req: any, res: any) => {
+app.post('/signup', async (req , res ) => {
   const { email, password } = req.body;
   console.log(email + "reached")
   if (!email || !password) {
@@ -125,7 +125,7 @@ app.post('/signup', async (req: any, res: any) => {
 });
 
 // Sign-in Endpoint
-app.post('/signin', async (req: any, res: any) => {
+app.post('/signin', async (req , res ) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -148,12 +148,15 @@ app.post('/signin', async (req: any, res: any) => {
 });
 
 // Endpoint to store credentials by user ID from JWT
-app.post('/credentials', authenticateToken, async (req: any, res: any) => {
+app.post('/credentials', authenticateToken, async (req , res ) => {
   const { consumerKey, consumerSecret, oauthToken, oauthTokenSecret, mediumToken,slackWebHook } = req.body;
 
   // Validate the input
   if (!consumerKey || !consumerSecret || !oauthToken || !oauthTokenSecret || !mediumToken || slackWebHook) {
     return res.status(400).json({ message: 'All fields are required' });
+  }
+  if(slackWebHook){
+    slack = slackWebHook
   }
 
   try {
@@ -196,25 +199,11 @@ app.post('/credentials', authenticateToken, async (req: any, res: any) => {
 });
 
 
-function parseJsonString(input: string) {
-  try {
-    // Clean up common issues like newlines within strings and other escape sequences
-    const cleanedInput = input.replace(/\\n/g, '').replace(/\\t/g, '').replace(/\\r/g, '').replace(/\\"/g, '"');
-    
-    // Parse the cleaned input as JSON
-    const parsedJson = JSON.parse(cleanedInput);
-    
-    return parsedJson;
-  } catch (error) {
-    console.error('Error parsing JSON:', error);
-    return null;
-  }
-}
 
 
 
 // Generate Endpoint: Receives a topic and returns a blog (with title, content, tags) and a tweet
-app.post('/generate', async (req : any, res:any) => {
+app.post('/generate', async (req  , res) => {
   const { topic } = req.body;
 
   if (!topic) {
@@ -233,7 +222,7 @@ app.post('/generate', async (req : any, res:any) => {
     const tweetContent = await getGptResponse(tweetPrompt);
 
     // Parse the blog content into structured JSON
-    let blogData: { title: string, content: string} = { title: topic, content: blogContent};
+    let blogData = { title: topic, content: blogContent};
 
 
     // Send back the generated content in JSON format
@@ -244,7 +233,7 @@ app.post('/generate', async (req : any, res:any) => {
       },
       tweet: tweetContent || 'No tweet generated',
     });
-  } catch (error :any) {
+  } catch (error) {
     res.status(500).json({ message: 'Failed to generate content', error: error.message });
   }
 });
@@ -253,9 +242,8 @@ app.post('/generate', async (req : any, res:any) => {
 
 
 
-let slack: string | Blob = "https://hooks.slack.com/services/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"; 
 // Function to publish to Medium
-const publishToMedium = async (data: { article_name: any; article_content: any; article_tags: string; token : string}) => {
+const publishToMedium = async (data) => {
   if(!data.token){
     throw new Error("Token missing")
   }
@@ -279,7 +267,7 @@ const publishToMedium = async (data: { article_name: any; article_content: any; 
       }
     });
     return response.data;
-  } catch (error:any) {
+  } catch (error) {
     console.error('Error posting to medium via Kestra:', error.message);
     throw new Error('Failed to post to medium via Kestra');
   }
@@ -288,7 +276,7 @@ const publishToMedium = async (data: { article_name: any; article_content: any; 
 
 
 // Helper function to trigger Kestra workflow for Twitter post
-const postToTwitterViaKestra = async (tweetText: string, tokens: any) => {
+const postToTwitterViaKestra = async (tweetText  , tokens ) => {
   try {
     const kestraUrl = 'http://localhost:8080/api/v1/executions/company.team/twitter_post';
 
@@ -303,7 +291,7 @@ const postToTwitterViaKestra = async (tweetText: string, tokens: any) => {
     formData.append('consumer_secret', tokens.consumerSecret);
     formData.append('oauth_token', tokens.oauthToken);
     formData.append('oauth_token_secret', tokens.oauthTokenSecret);
-
+    formData.append('slack',slack);
     // Send the POST request to Kestra with the credentials and tweet text
     const response = await axios.post(kestraUrl, formData, {
       headers: {
@@ -312,7 +300,7 @@ const postToTwitterViaKestra = async (tweetText: string, tokens: any) => {
     });
 
     return response.data;
-  } catch (error: any) {
+  } catch (error ) {
     console.error('Error posting to Twitter via Kestra:', error.message);
     throw new Error('Failed to post to Twitter via Kestra');
   }
@@ -320,9 +308,9 @@ const postToTwitterViaKestra = async (tweetText: string, tokens: any) => {
 
 // Endpoint to handle article publishing
 
-app.post('/publish', authenticateToken,async (req:any, res:any) => {
+app.post('/publish', authenticateToken,async (req, res) => {
   const { article_name, article_content, tweet_text,trail } = req.body;
-  let tokens :any = {};
+  let tokens = {};
   console.log(trailUsed)
   if(trail && !trailUsed.includes(req.user.userId)){
     trailUsed.push(req.user.userId)
@@ -364,13 +352,13 @@ app.post('/publish', authenticateToken,async (req:any, res:any) => {
       medium: mediumResponse.id,
       twitter: twitterResponse.id
     });
-  } catch (error:any) {
+  } catch (error) {
     console.error(error.message);
     res.status(500).json({ message: 'Failed to publish content', error: error.message });
   }
 });
 
-app.get("/trail", authenticateToken, (req:any, res:any) => {
+app.get("/trail", authenticateToken, (req, res) => {
   try {
     if (!req.user) {
       return res.status(403).json({ msg: "Unauthorized access" });
@@ -381,13 +369,14 @@ app.get("/trail", authenticateToken, (req:any, res:any) => {
       return res.json({ msg: "FreeTrail completed" });
     }
     return res.json({ msg: "approved" });
-  } catch (error:any) {
+  } catch (error) {
     console.error("Error in /trail route:", error.message);
     res.status(500).json({ msg: "Internal Server Error" });
   }
 });
-app.get("/check",(req:any,res:any)=>{
+app.get("/check",(req,res)=>{
   res.send("Yeah its up")
 })
+app.listen(3000, () => console.log("Server ready on port 3000."));
 
 export default app;

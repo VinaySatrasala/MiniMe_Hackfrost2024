@@ -6,6 +6,7 @@ import SignupPage from './Pages/Singup';
 import SignInPage from './Pages/Signin';
 import MainContentPage from './Pages/Generate';
 import CredentialPage from './Pages/Credentials';
+import Footer from './Components/footer';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path='/generate' element={<MainContentPage/>}/>
         <Route path='/credentials' element={<CredentialPage/>}/>
       </Routes>
+      <Footer/>
     </Router>
   );
 }

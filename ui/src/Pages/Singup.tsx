@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const SignUpPage = () => {
-  // State for form inputs
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -10,9 +9,9 @@ const SignUpPage = () => {
     password: "",
   });
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const navigate = useNavigate();
 
-  // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setFormData((prev) => ({
@@ -21,19 +20,18 @@ const SignUpPage = () => {
     }));
   };
 
-  // Function to handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Basic validation
     const { firstName, lastName, email, password } = formData;
     if (!firstName || !lastName || !email || !password) {
-      alert("All fields are required!");
+      setMessage({ type: "error", text: "All fields are required!" });
       return;
     }
 
     const payload = { firstName, lastName, email, password };
     setLoading(true);
+    setMessage(null);
 
     try {
       const response = await fetch(`http://localhost:3000/signup`, {
@@ -46,17 +44,18 @@ const SignUpPage = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        alert(`Error: ${errorData.message || "Failed to sign up"}`);
+        setMessage({ type: "error", text: errorData.message || "Failed to sign up" });
         return;
       }
 
       const result = await response.json();
-      alert("Sign up successful!");
-      console.log("Response:", result);
-      localStorage.setItem("token",result.token)
-      navigate("/credentials")
+      localStorage.setItem("token", result.token);
+      setMessage({ type: "success", text: "Sign-up successful! Redirecting..." });
 
-      // Clear the form
+      setTimeout(() => {
+        navigate("/credentials");
+      }, 2000);
+
       setFormData({
         firstName: "",
         lastName: "",
@@ -65,7 +64,7 @@ const SignUpPage = () => {
       });
     } catch (error) {
       console.error("Error during sign up:", error);
-      alert("An unexpected error occurred. Please try again later.");
+      setMessage({ type: "error", text: "An unexpected error occurred. Please try again later." });
     } finally {
       setLoading(false);
     }
@@ -73,7 +72,6 @@ const SignUpPage = () => {
 
   return (
     <div className="flex h-screen bg-black text-white">
-      {/* Right Section: Quote/Description */}
       <div className="hidden md:flex flex-1 items-center justify-center p-4 bg-transparent">
         <div className="max-w-md text-center bg-gradient-to-b from-white via-white/80 to-transparent p-6 rounded-lg shadow-lg">
           <h3 className="text-5xl font-bold mb-4 text-black">Welcome to MiniMe</h3>
@@ -83,12 +81,20 @@ const SignUpPage = () => {
         </div>
       </div>
 
-      {/* Left Section: Sign-Up Form */}
       <div className="flex flex-1 justify-center items-center p-4">
         <form onSubmit={handleSubmit} className="w-full max-w-lg bg-gray-900 p-8 rounded-lg shadow-md">
           <h2 className="text-3xl font-semibold text-center mb-6">Sign Up</h2>
 
-          {/* Input Fields */}
+          {message && (
+            <div
+              className={`mb-4 p-3 rounded-lg ${
+                message.type === "success" ? "bg-green-500" : "bg-red-500"
+              }`}
+            >
+              <p className="text-white text-center">{message.text}</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
             <div>
               <label htmlFor="firstName" className="block text-sm font-medium mb-2">
@@ -138,7 +144,7 @@ const SignUpPage = () => {
             </label>
             <input
               type="password"
-                id="password"
+              id="password"
               value={formData.password}
               onChange={handleChange}
               className="w-full p-3 border border-gray-700 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-gray-500"
@@ -146,7 +152,6 @@ const SignUpPage = () => {
             />
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             className={`w-full font-semibold py-3 rounded-lg transition ${
