@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState} from 'react';
 
 const MainContentPage = () => {
   const [idea, setIdea] = useState('');
@@ -6,7 +6,6 @@ const MainContentPage = () => {
   const [blogContent, setBlogContent] = useState('');
   const [tweet, setTweet] = useState('');
   const [loading, setLoading] = useState(false); // Loading state to handle loader visibility
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
   let trails = localStorage.getItem("trails");
   // Fetch content from the backend
   const fetchContent = async () => {
@@ -32,17 +31,7 @@ const MainContentPage = () => {
     }
   };
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      // Fetch content automatically if authenticated
-    //   fetchContent();
-    }
-  }, [isAuthenticated]);
 
-  const handleLogin = () => {
-    // Simulate authentication
-    setIsAuthenticated(true);
-  };
 
   const handlePublish = async () => {
     // Send the data to the /publish endpoint
